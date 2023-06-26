@@ -74,14 +74,14 @@ function unpack() {
             case $compression_type in
             gzip*)
                 echo "Decompressing gzip-compressed file..."
-                gunzip -k "${target}" -c > "${DEST_DIR}/$(basename "${target}" .gz)_gz"
+                gunzip -k "${target}" -c > "${DEST_DIR}/$(basename "${target%.*}")_gz"
                 echo "File processed."
 
                 total_decompress_archives=$((total_decompress_archives+1))
                 ;;
             bzip2*)
                 echo "Decompressing bzip2-compressed file..."
-                bzip2 -dc "$target" > "${DEST_DIR}/$(basename "${target}" .bz2)_bz2"
+                bzip2 -dc "$target" > "${DEST_DIR}/$(basename "${target%.*}")_bz2"
                 echo "File processed."
 
                 total_decompress_archives=$((total_decompress_archives+1))
@@ -95,7 +95,7 @@ function unpack() {
                 ;;
             compress*)
                 echo "Decompressing compress-compressed file..."
-                gzip -d -c "${target}" > "${DEST_DIR}/$(basename "${target}" .cmpr)_cmpr"
+                gzip -d -c "${target}" > "${DEST_DIR}/$(basename "${target%.*}")_cmpr"
                 echo "File processed."
 
                 total_decompress_archives=$((total_decompress_archives+1))
