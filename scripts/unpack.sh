@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# TODO: #!/usr/bin/env bash vs #!/usr/bin/bash
 
 #### Validate variables:
 # URL="${URL?FATAL URL is not set}"
@@ -137,8 +136,6 @@ function unpack_archive() {
     rc=$?
     return "${rc}"
 }
-
-# TODO: change the path to dest_dir - look at max's script
 
 # Usage example:
 DATA_DIR="./welcome"
