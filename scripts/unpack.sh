@@ -12,6 +12,9 @@
 
 # Set the default destination folder to the home directory
 DEST_DIR="${DEST_DIR:-${HOME}}"
+TOTAL_DECOMP_ARCHIVE=0
+TOTAL_NOT_DECOMP_FILES=0
+
 
 function unpack_with_quirks() {
   local \
@@ -43,13 +46,11 @@ function unpack() {
     local \
         archive \
         compression_type \
-        total_decompress_archives \
-        total_not_decompress_files
+        rc
     local -a \
         unpack_files
 
     archive="${1?FATAL - missing archive}"
-    shift 1
     unpack_files+=("${@}")
 
     echo "${DEST_DIR}"
@@ -63,64 +64,85 @@ function unpack() {
             echo "Processing directory: ${target}"
             # Process each file in the directory
             for file in "${target}"/*; do
-                process_files "${file}"
+                unpack "${file}"
             done
         else
-            echo "Processing file: ${target}"
-            # Determine the compression type of the file
-            compression_type=$(file "$target" | awk -F': ' '{print $2}')
-
-            # Decompress the file based on the compression type
-            case $compression_type in
-            gzip*)
-                echo "Decompressing gzip-compressed file..."
-                gunzip -k "${target}" -c > "${DEST_DIR}/$(basename "${target%.*}")_gz"
-                echo "File processed."
-
-                total_decompress_archives=$((total_decompress_archives+1))
-                ;;
-            bzip2*)
-                echo "Decompressing bzip2-compressed file..."
-                bzip2 -dc "$target" > "${DEST_DIR}/$(basename "${target%.*}")_bz2"
-                echo "File processed."
-
-                total_decompress_archives=$((total_decompress_archives+1))
-                ;;
-            Zip*)
-                echo "Decompressing zip archive..."
-                unzip "${target}" -d "${DEST_DIR}"
-                echo "File processed."
-
-                total_decompress_archives=$((total_decompress_archives+1))
-                ;;
-            compress*)
-                echo "Decompressing compress-compressed file..."
-                gzip -d -c "${target}" > "${DEST_DIR}/$(basename "${target%.*}")_cmpr"
-                echo "File processed."
-
-                total_decompress_archives=$((total_decompress_archives+1))
-                ;;
-            *)
-                # TODO: should be part of -v (verbose)
-                echo "The file ${target} wasn't decompressed."
-                total_not_decompress_files=$((total_not_decompress_files+1))
-                ;;
-            esac
+            unpack_archive "${target}"
         fi
+
     done
-    [[ "${total_decompress_archives}" -gt 0 ]] && \
-        echo "Number of archives that decompressed = ${total_decompress_archives}"
-    [[ "${total_not_decompress_files}" -gt 0 ]] && \
-        echo "Number of files that did NOT decompress = ${total_not_decompress_files}"
+    [[ "${TOTAL_DECOMP_ARCHIVE}" -gt 0 ]] && \
+        echo "Total archives that decompressed = ${TOTAL_DECOMP_ARCHIVE}"
+    [[ "${TOTAL_NOT_DECOMP_FILES}" -gt 0 ]] && \
+        echo "Total files that did NOT decompress = ${TOTAL_NOT_DECOMP_FILES}"
 }
 
+function unpack_archive() {
+
+    local \
+        archive \
+        compression_type \
+        rc
+
+    archive="${1}"
+
+    echo "Processing archive: ${archive}"
+    # Determine the compression type of the file
+    compression_type=$(file "$archive" | awk -F': ' '{print $2}')
+
+    # Decompress the file based on the compression type
+    case $compression_type in
+    gzip*)
+        echo "Decompressing gzip archive..."
+        gunzip -k "${archive}" -c > "${DEST_DIR}/$(basename "${archive%.*}")_gz" && rc=$? || rc=$?
+        echo "File processed."
+
+        TOTAL_DECOMP_ARCHIVE=$((TOTAL_DECOMP_ARCHIVE+1))
+        ;;
+    bzip2*)
+        echo "Decompressing bzip2 archive..."
+        bzip2 -dc "$archive" > "${DEST_DIR}/$(basename "${archive%.*}")_bz2" && rc=$? || rc=$?
+        echo "File processed."
+
+        TOTAL_DECOMP_ARCHIVE=$((TOTAL_DECOMP_ARCHIVE+1))
+        ;;
+    Zip*)
+        echo "Decompressing zip archive..."
+        unzip "${archive}" -d "${DEST_DIR}" && rc=$? || rc=$?
+        echo "File processed."
+
+        TOTAL_DECOMP_ARCHIVE=$((TOTAL_DECOMP_ARCHIVE+1))
+        ;;
+    compress*)
+        echo "Decompressing compressed archive..."
+        gzip -d -c "${archive}" > "${DEST_DIR}/$(basename "${archive%.*}")_cmpr" && rc=$? || rc=$?
+        echo "File processed."
+
+        TOTAL_DECOMP_ARCHIVE=$((TOTAL_DECOMP_ARCHIVE+1))
+        ;;
+    *)
+        # TODO: should be part of -v (verbose)
+        echo "The file ${archive} wasn't decompressed."
+        TOTAL_NOT_DECOMP_FILES=$((TOTAL_NOT_DECOMP_FILES+1))
+        ;;
+    esac
+
+    # if [[ "${rc}" -ne 0 ]]; then
+    #     log_error "Failed to create archive: ${archive}, rc=${rc}"
+    #     exit "${rc}"
+    # fi
+    # log_info "Successfully built ${package}-${version} and generated archive: ${archive}"
+    # return "${rc}"
+
+    rc=$?
+    return "${rc}"
+}
 
 # TODO: change the path to dest_dir - look at max's script
 
 # Usage example:
 DATA_DIR="./welcome"
-destination="/path/to/destination/folder"
 files=("${DATA_DIR}/archive.gz" "${DATA_DIR}/archive.bz2" "${DATA_DIR}/archive.zip" "${DATA_DIR}/archive.cmpr" "${DATA_DIR}/simple.txt")
 
 export DEST_DIR="./dest_dir"
-unpack "${DEST_DIR}" "${files[@]}"
+unpack "${files[@]}"
