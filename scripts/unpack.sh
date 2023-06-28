@@ -11,52 +11,66 @@
 
 # Set the default destination folder to the home directory
 DEST_DIR="${DEST_DIR:-${HOME}}"
-TOTAL_DECOMP_ARCHIVE=0
-TOTAL_NOT_DECOMP_FILES=0
+
+# function unpack_with_quirks() {
+#   local \
+#     archive \
+#     rc
+#   local -a \
+#     quirky_unpack
+#   archive="${1?FATAL - missing archive}"
+#   shift 1
+#   quirky_unpack+=("${@}")
+
+#   tar zxf "${archive}" || { log_error "unpacking failed"; exit "${rc}"; }
+#   log_info "unpacked ${archive}"
 
 
-function unpack_with_quirks() {
-  local \
-    archive \
-    rc
-  local -a \
-    quirky_unpack
-  archive="${1?FATAL - missing archive}"
-  shift 1
-  quirky_unpack+=("${@}")
+#   [[ "${CLEANUP}" -gt 0 ]] && add_on_exit rm -f "${PWD}/${archive}"
 
-  tar zxf "${archive}" || { log_error "unpacking failed"; exit "${rc}"; }
-  log_info "unpacked ${archive}"
-
-
-  [[ "${CLEANUP}" -gt 0 ]] && add_on_exit rm -f "${PWD}/${archive}"
-
-  if [[ "${#quirky_unpack[@]}" -gt 0 ]]; then
-    log_info "this package requires a quirk after the unpacking command: ${quirky_unpack[*]}"
-    "${quirky_unpack[@]}"
-  fi
-  [[ "${CLEANUP}" -gt 0 ]] && add_on_exit rm -fr "${PWD}/${SRC_DIR}"
-  return 0
-}
+#   if [[ "${#quirky_unpack[@]}" -gt 0 ]]; then
+#     log_info "this package requires a quirk after the unpacking command: ${quirky_unpack[*]}"
+#     "${quirky_unpack[@]}"
+#   fi
+#   [[ "${CLEANUP}" -gt 0 ]] && add_on_exit rm -fr "${PWD}/${SRC_DIR}"
+#   return 0
+# }
 
 
 function unpack() {
 
     local \
+        dest_dir \
         archive \
         compression_type \
-        rc
+        verbose \
+        recursive \
+        total_file_count \
+        total_ignored_count
     local -a \
         unpack_files
 
+    total_file_count=0
+    total_ignored_count=0
+    verbose=false
+    recursive=false
     archive="${1?FATAL - missing archive}"
     unpack_files+=("${@}")
 
-    echo "${DEST_DIR}"
-    echo "${unpack_files[@]}"
+    while getopts 'vr' opt; do
+        case $opt in
+            v) verbose=true ;;
+            r) recursive=true ;;
+            *) echo 'Error in command line parsing' >&2
+                exit 1 ;;
+        esac
+    done
 
-  # Iterate over the filenames
-  # shellcheck disable=SC2043
+
+    shift "$(( OPTIND - 1 ))"
+
+    # Iterate over the archives
+
     for target in "${unpack_files[@]}"; do
         # Check if the target is a directory
         if [ -d "${target}" ]; then
@@ -66,74 +80,65 @@ function unpack() {
                 unpack "${file}"
             done
         else
-            unpack_archive "${target}"
+            unpack_archive "${target}" "${verbose}" \
+                            && total_file_count=$((total_file_count+1)) \
+                                                || total_ignored_count=$((total_ignored_count+1))
         fi
 
     done
-    [[ "${TOTAL_DECOMP_ARCHIVE}" -gt 0 ]] && \
-        echo "Total archives that decompressed = ${TOTAL_DECOMP_ARCHIVE}"
-    [[ "${TOTAL_NOT_DECOMP_FILES}" -gt 0 ]] && \
-        echo "Total files that did NOT decompress = ${TOTAL_NOT_DECOMP_FILES}"
+
+    echo "Decompressed ${total_file_count} archive(s) "
+    # TODO: check if this expression is valid
+    [[ "${total_ignored_count}" -gt 0 ]] && rc=1 || rc=0
+
+    echo "rc - ${rc}"
+
+    return "${rc}"
 }
 
 function unpack_archive() {
-
     local \
         archive \
+        dest_dir \
+        verbose \
         compression_type \
         rc
 
-    archive="${1}"
+    # # shellcheck disable=SC2034
+    # local extension="${file##*.}"
+    # # shellcheck disable=SC2034
+    # local filename="${file%.*}"
 
-    echo "Processing archive: ${archive}"
+    archive="${1}"
+    verbose="${2}"
+    dest_dir="${3}"
+
     # Determine the compression type of the file
     compression_type=$(file "$archive" | awk -F': ' '{print $2}')
 
     # Decompress the file based on the compression type
     case $compression_type in
     gzip*)
-        echo "Decompressing gzip archive..."
+        [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
         gunzip -k "${archive}" -c > "${DEST_DIR}/$(basename "${archive%.*}")_gz" && rc=$? || rc=$?
-        echo "File processed."
-
-        TOTAL_DECOMP_ARCHIVE=$((TOTAL_DECOMP_ARCHIVE+1))
         ;;
     bzip2*)
-        echo "Decompressing bzip2 archive..."
+        [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
         bzip2 -dc "$archive" > "${DEST_DIR}/$(basename "${archive%.*}")_bz2" && rc=$? || rc=$?
-        echo "File processed."
-
-        TOTAL_DECOMP_ARCHIVE=$((TOTAL_DECOMP_ARCHIVE+1))
         ;;
     Zip*)
-        echo "Decompressing zip archive..."
+        [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
         unzip "${archive}" -d "${DEST_DIR}" && rc=$? || rc=$?
-        echo "File processed."
-
-        TOTAL_DECOMP_ARCHIVE=$((TOTAL_DECOMP_ARCHIVE+1))
         ;;
     compress*)
-        echo "Decompressing compressed archive..."
+        [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
         gzip -d -c "${archive}" > "${DEST_DIR}/$(basename "${archive%.*}")_cmpr" && rc=$? || rc=$?
-        echo "File processed."
-
-        TOTAL_DECOMP_ARCHIVE=$((TOTAL_DECOMP_ARCHIVE+1))
         ;;
     *)
-        # TODO: should be part of -v (verbose)
-        echo "The file ${archive} wasn't decompressed."
-        TOTAL_NOT_DECOMP_FILES=$((TOTAL_NOT_DECOMP_FILES+1))
+        [ "$verbose" = true ] && echo "Ignoring ${archive}" && rc=1
         ;;
     esac
 
-    # if [[ "${rc}" -ne 0 ]]; then
-    #     log_error "Failed to create archive: ${archive}, rc=${rc}"
-    #     exit "${rc}"
-    # fi
-    # log_info "Successfully built ${package}-${version} and generated archive: ${archive}"
-    # return "${rc}"
-
-    rc=$?
     return "${rc}"
 }
 
@@ -142,4 +147,14 @@ DATA_DIR="./welcome"
 files=("${DATA_DIR}/archive.gz" "${DATA_DIR}/archive.bz2" "${DATA_DIR}/archive.zip" "${DATA_DIR}/archive.cmpr" "${DATA_DIR}/simple.txt")
 
 export DEST_DIR="./dest_dir"
-unpack "${files[@]}"
+
+# unpack "${files[@]}"
+unpack "${files[@]:0:2}"
+
+# unpack -j "${files[@]}"
+# unpack -v "${files[@]}"
+# unpack -r "${files[@]}"
+# unpack -v -r "${files[@]}"
+# unpack -v -r "${files[@]:0:3}"
+
+# unpack "$@"
