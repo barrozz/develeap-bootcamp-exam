@@ -74,9 +74,6 @@ function unpack() {
     echo "Decompressed ${total_file_count} archive(s) "
     [[ "${total_ignored_count}" -gt 0 ]] && rc=1 || rc=0
 
-    echo "rc - ${rc}"
-    echo "total_ignored_count - ${total_ignored_count}"
-
     return "${rc}"
 }
 
@@ -90,7 +87,7 @@ function unpack_archive() {
     # # shellcheck disable=SC2034
     # local extension="${file##*.}"
     # # shellcheck disable=SC2034
-    # local filename="${file%.*}"
+    # local filename="${file}"
 
     archive="${1}"
     verbose="${2}"
@@ -103,11 +100,11 @@ function unpack_archive() {
     case $compression_type in
     gzip*)
         [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
-        gunzip -k "${archive}" -c > "${DEST_DIR}/$(basename "${archive%.*}")_gz" && rc=$? || rc=$?
+        gunzip -k "${archive}" -c > "${DEST_DIR}/$(basename "${archive}")" && rc=$? || rc=$?
         ;;
     bzip2*)
         [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
-        bzip2 -dc "$archive" > "${DEST_DIR}/$(basename "${archive%.*}")_bz2" && rc=$? || rc=$?
+        bzip2 -dc "$archive" > "${DEST_DIR}/$(basename "${archive}")" && rc=$? || rc=$?
         ;;
     Zip*)
         [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
@@ -115,7 +112,7 @@ function unpack_archive() {
         ;;
     compress*)
         [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
-        gzip -d -c "${archive}" > "${DEST_DIR}/$(basename "${archive%.*}")_cmpr" && rc=$? || rc=$?
+        gzip -d -c "${archive}" > "${DEST_DIR}/$(basename "${archive}")" && rc=$? || rc=$?
         ;;
     *)
         [ "$verbose" = true ] && echo "Ignoring ${archive}" && rc=1 || rc=1
@@ -141,9 +138,9 @@ export DEST_DIR="./dest_dir"
 # unpack -v -r "${files[@]:0:5}"
 
 # unpack $DATA_DIR
-# unpack -v $DATA_DIR
+unpack -v $DATA_DIR
 # unpack -v -r $DATA_DIR
-unpack -r $DATA_DIR/"dir-2"
+# unpack -r $DATA_DIR
 
 
 
