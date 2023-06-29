@@ -12,31 +12,6 @@
 # Set the default destination folder to the home directory
 DEST_DIR="${DEST_DIR:-${HOME}}"
 
-# function unpack_with_quirks() {
-#   local \
-#     archive \
-#     rc
-#   local -a \
-#     quirky_unpack
-#   archive="${1?FATAL - missing archive}"
-#   shift 1
-#   quirky_unpack+=("${@}")
-
-#   tar zxf "${archive}" || { log_error "unpacking failed"; exit "${rc}"; }
-#   log_info "unpacked ${archive}"
-
-
-#   [[ "${CLEANUP}" -gt 0 ]] && add_on_exit rm -f "${PWD}/${archive}"
-
-#   if [[ "${#quirky_unpack[@]}" -gt 0 ]]; then
-#     log_info "this package requires a quirk after the unpacking command: ${quirky_unpack[*]}"
-#     "${quirky_unpack[@]}"
-#   fi
-#   [[ "${CLEANUP}" -gt 0 ]] && add_on_exit rm -fr "${PWD}/${SRC_DIR}"
-#   return 0
-# }
-
-
 function unpack() {
 
     local \
@@ -54,8 +29,6 @@ function unpack() {
     total_ignored_count=0
     verbose=false
     recursive=false
-    archive="${1?FATAL - missing archive}"
-    unpack_files+=("${@}")
 
     while getopts 'vr' opt; do
         case $opt in
@@ -66,32 +39,43 @@ function unpack() {
         esac
     done
 
-
     shift "$(( OPTIND - 1 ))"
+
+    archive="${1?FATAL - missing archive}"
+    unpack_files+=("${@}")
 
     # Iterate over the archives
 
-    for target in "${unpack_files[@]}"; do
-        # Check if the target is a directory
-        if [ -d "${target}" ]; then
-            echo "Processing directory: ${target}"
-            # Process each file in the directory
-            for file in "${target}"/*; do
-                unpack "${file}"
-            done
-        else
-            unpack_archive "${target}" "${verbose}" \
-                            && total_file_count=$((total_file_count+1)) \
-                                                || total_ignored_count=$((total_ignored_count+1))
-        fi
+    find_archive() {
+        local arg
+        arg="${1}"
 
+        if [[ -d "${arg}" ]]; then
+            # TODO: add recursive and verbose opts
+                for file in "${arg}"/*; do
+                    if [ "${recursive}" = true ]; then
+                        find_archive "${file}"
+                    elif [ -f "${file}" ]; then
+                        find_archive "${file}"
+                    fi
+                done
+        elif [[ -f "${arg}" ]]; then
+            unpack_archive "${arg}" "${verbose}" \
+                        && total_file_count=$((total_file_count+1)) \
+                                            || total_ignored_count=$((total_ignored_count+1))
+        fi
+    }
+
+    for target in "${unpack_files[@]}"; do
+        # TODO: remove verbose from expression
+        find_archive "${target}" "${verbose}"
     done
 
     echo "Decompressed ${total_file_count} archive(s) "
-    # TODO: check if this expression is valid
     [[ "${total_ignored_count}" -gt 0 ]] && rc=1 || rc=0
 
     echo "rc - ${rc}"
+    echo "total_ignored_count - ${total_ignored_count}"
 
     return "${rc}"
 }
@@ -99,7 +83,6 @@ function unpack() {
 function unpack_archive() {
     local \
         archive \
-        dest_dir \
         verbose \
         compression_type \
         rc
@@ -111,7 +94,7 @@ function unpack_archive() {
 
     archive="${1}"
     verbose="${2}"
-    dest_dir="${3}"
+    # dest_dir="${3}"
 
     # Determine the compression type of the file
     compression_type=$(file "$archive" | awk -F': ' '{print $2}')
@@ -135,7 +118,7 @@ function unpack_archive() {
         gzip -d -c "${archive}" > "${DEST_DIR}/$(basename "${archive%.*}")_cmpr" && rc=$? || rc=$?
         ;;
     *)
-        [ "$verbose" = true ] && echo "Ignoring ${archive}" && rc=1
+        [ "$verbose" = true ] && echo "Ignoring ${archive}" && rc=1 || rc=1
         ;;
     esac
 
@@ -149,12 +132,19 @@ files=("${DATA_DIR}/archive.gz" "${DATA_DIR}/archive.bz2" "${DATA_DIR}/archive.z
 export DEST_DIR="./dest_dir"
 
 # unpack "${files[@]}"
-unpack "${files[@]:0:2}"
+# unpack "${files[@]:0:4}"
 
 # unpack -j "${files[@]}"
 # unpack -v "${files[@]}"
 # unpack -r "${files[@]}"
 # unpack -v -r "${files[@]}"
-# unpack -v -r "${files[@]:0:3}"
+# unpack -v -r "${files[@]:0:5}"
+
+# unpack $DATA_DIR
+# unpack -v $DATA_DIR
+# unpack -v -r $DATA_DIR
+unpack -r $DATA_DIR/"dir-2"
+
+
 
 # unpack "$@"
