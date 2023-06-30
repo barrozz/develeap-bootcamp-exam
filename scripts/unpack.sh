@@ -2,13 +2,13 @@
 
 # Set the default destination folder to the home directory
 DEST_DIR="${DEST_DIR:-"${HOME}"}"
-verbose=false
-recursive=false
+VERBOSE=false
+RECURSIVE=false
 
 while getopts 'vr' opt; do
     case $opt in
-        v) verbose=true ;;
-        r) recursive=true ;;
+        v) VERBOSE=true ;;
+        r) RECURSIVE=true ;;
         *) echo 'Error in command line parsing' >&2
             exit 1 ;;
     esac
@@ -21,8 +21,8 @@ function unpack() {
     local \
         archive \
         compression_type \
-        verbose \
-        recursive \
+        VERBOSE \
+        RECURSIVE \
         total_file_count \
         total_ignored_count
     local -a \
@@ -30,24 +30,24 @@ function unpack() {
 
     total_file_count=0
     total_ignored_count=0
-    verbose=false
-    recursive=false
+    VERBOSE=false
+    RECURSIVE=false
 
 
     archive="${1?FATAL - missing archive}"
     unpack_files+=("${@}")
 
     # TODO: find out what are the difference of passing array vs $@
-    if [ "${recursive}" = true ]; then
-        find_archive_recursive "${@}"
+    if [ "${RECURSIVE}" = true ]; then
+        find_archive_RECURSIVE "${@}"
     else
         find_archive "${@}"
     fi
 
     # Iterate over the archives
     for target in "${unpack_files[@]}"; do
-        # TODO: remove verbose from expression
-        find_archive "${target}" "${verbose}"
+        # TODO: remove VERBOSE from expression
+        find_archive "${target}" "${VERBOSE}"
     done
 
     echo "Decompressed ${total_file_count} archive(s) "
@@ -72,7 +72,7 @@ function find_archive() {
             # TODO: assign DEST_DIR to the specified
             DEST_DIR="${file}"
 
-            if [ "${recursive}" = true ]; then
+            if [ "${RECURSIVE}" = true ]; then
                 mapfile -t files < <(find "${arc_file}" -type f)
             else
                 files=("${arc_file}"/*)
@@ -101,12 +101,12 @@ function find_archive() {
 # function unpack_archive() {
 #     local \
 #         archive \
-#         verbose \
+#         VERBOSE \
 #         compression_type \
 #         rc
 
 #     archive="${1}"
-#     verbose="${2}"
+#     VERBOSE="${2}"
 
 #     # Determine the compression type of the file
 #     compression_type=$(file "$archive" | awk -F': ' '{print $2}')
@@ -114,27 +114,27 @@ function find_archive() {
 #     # Decompress the file based on the compression type
 #     case $compression_type in
 #     gzip*)
-#         [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
+#         [ "${VERBOSE}" = true ] && echo "Unpacking ${archive}..."
 #         gunzip -k "${archive}" -c > "${DEST_DIR}/$(basename "${archive}")"
 #         rc=$?
 #         ;;
 #     bzip2*)
-#         [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
+#         [ "${VERBOSE}" = true ] && echo "Unpacking ${archive}..."
 #         bzip2 -dc "$archive" > "${DEST_DIR}/$(basename "${archive}")"
 #         rc=$?
 #         ;;
 #     Zip*)
-#         [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
+#         [ "${VERBOSE}" = true ] && echo "Unpacking ${archive}..."
 #         unzip "${archive}" -d "${DEST_DIR}" > /dev/null
 #         rc=$?
 #         ;;
 #     compress*)
-#         [ "${verbose}" = true ] && echo "Unpacking ${archive}..."
+#         [ "${VERBOSE}" = true ] && echo "Unpacking ${archive}..."
 #         gzip -d -c "${archive}" > "${DEST_DIR}/$(basename "${archive}")"
 #         rc=$?
 #         ;;
 #     *)
-#         [ "$verbose" = true ] && echo "Ignoring ${archive}"
+#         [ "$VERBOSE" = true ] && echo "Ignoring ${archive}"
 #         rc=1
 #         ;;
 #     esac
@@ -158,7 +158,7 @@ function unpack_archive() {
             opts="-f"
             dest_dir=""
 
-            [ "${verbose}" = true ] && echo "Unpacking ${filename}..."
+            [ "${VERBOSE}" = true ] && echo "Unpacking ${filename}..."
             gunzip -f "${filename}" > /dev/null
             ;;
         bzip2*)
@@ -166,7 +166,7 @@ function unpack_archive() {
             opts=""
             dest_dir=""
 
-            [ "${verbose}" = true ] && echo "Unpacking ${filename}..."
+            [ "${VERBOSE}" = true ] && echo "Unpacking ${filename}..."
             bunzip2 -c "${filename}" > "${filename}.bz2"
             ;;
         Zip*)
@@ -174,7 +174,7 @@ function unpack_archive() {
             opts="-d"
             dest_dir=$(dirname "${filename}")
 
-            [ "${verbose}" = true ] && echo "Unpacking ${filename}..."
+            [ "${VERBOSE}" = true ] && echo "Unpacking ${filename}..."
             unzip -o "${filename}" -d "${dest_dir}" > /dev/null
             ;;
         compress*)
@@ -182,11 +182,11 @@ function unpack_archive() {
             opts="-d -c"
             dest_dir="> ${filename%.*}"
 
-            [ "${verbose}" = true ] && echo "Unpacking ${filename}..."
+            [ "${VERBOSE}" = true ] && echo "Unpacking ${filename}..."
             gzip -d -c "${filename}" > "${filename%.*}"
             ;;
         *)
-            [ "$verbose" = true ] && echo "Ignoring ${filename}"
+            [ "$VERBOSE" = true ] && echo "Ignoring ${filename}"
             return 1
             ;;
     esac
@@ -200,31 +200,6 @@ function unpack_archive() {
     return "${rc}"
 }
 
-# Usage example:
-DATA_DIR="welcome"
-files=("${DATA_DIR}/archive.gz" "${DATA_DIR}/archive.bz2" "${DATA_DIR}/archive.zip" "${DATA_DIR}/archive.cmpr" "${DATA_DIR}/simple.txt")
-
 # export DEST_DIR="./dest_dir"
 
-# unpack "${files[@]}"
-# unpack "${files[@]:0:2}"
-
-# unpack "${files[@]:0:4}"
-
-# unpack -j "${files[@]}"
-# unpack -v "${files[@]}"
-# unpack -r "${files[@]}"
-# unpack -v -r "${files[@]}"
-# unpack -v -r "${files[@]:0:5}"
-
-# unpack $DATA_DIR
-# unpack -v *
-# unpack *
-
-# unpack ./welcome_copy
-# unpack -v -r $DATA_DIR
-# unpack -r $DATA_DIR
-
-
-# unpack "$@"
 find_archive "$@"
