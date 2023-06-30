@@ -14,43 +14,6 @@ done
 
 shift "$(( OPTIND - 1 ))"
 
-function unpack() {
-
-    local \
-        archive \
-        compression_type \
-        VERBOSE \
-        RECURSIVE \
-        total_file_count \
-        total_ignored_count
-    local -a \
-        unpack_files
-
-    total_file_count=0
-    total_ignored_count=0
-    VERBOSE=false
-    RECURSIVE=false
-
-
-    archive="${1?FATAL - missing archive}"
-    unpack_files+=("${@}")
-
-    # TODO: find out what are the difference of passing array vs $@
-    if [ "${RECURSIVE}" = true ]; then
-        find_archive_RECURSIVE "${@}"
-    else
-        find_archive "${@}"
-    fi
-
-    # Iterate over the archives
-    for target in "${unpack_files[@]}"; do
-        # TODO: remove VERBOSE from expression
-        find_archive "${target}" "${VERBOSE}"
-    done
-
-    echo "Decompressed ${total_file_count} archive(s) "
-    return "${total_ignored_count}"
-}
 
 function find_archive() {
 
