@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# Set the default destination folder to the home directory
-DEST_DIR="${DEST_DIR:-"${HOME}"}"
 VERBOSE=false
 RECURSIVE=false
 
@@ -69,8 +67,6 @@ function find_archive() {
 
     for arc_file in "${unpack_files[@]}"; do
         if [[ -d "${arc_file}" ]]; then
-            # TODO: assign DEST_DIR to the specified
-            DEST_DIR="${file}"
 
             if [ "${RECURSIVE}" = true ]; then
                 mapfile -t files < <(find "${arc_file}" -type f)
@@ -79,8 +75,6 @@ function find_archive() {
             fi
 
         elif [[ -f "${arc_file}" ]]; then
-            # TODO: assign DEST_DIR to the specified
-            DEST_DIR="${file}"
             files=("${arc_file}")
         fi
 
@@ -97,109 +91,52 @@ function find_archive() {
     return "${total_ignored_count}"
 }
 
-# UNPACK WITH DESTINATION DIR
-# function unpack_archive() {
-#     local \
-#         archive \
-#         VERBOSE \
-#         compression_type \
-#         rc
-
-#     archive="${1}"
-#     VERBOSE="${2}"
-
-#     # Determine the compression type of the file
-#     compression_type=$(file "$archive" | awk -F': ' '{print $2}')
-
-#     # Decompress the file based on the compression type
-#     case $compression_type in
-#     gzip*)
-#         [ "${VERBOSE}" = true ] && echo "Unpacking ${archive}..."
-#         gunzip -k "${archive}" -c > "${DEST_DIR}/$(basename "${archive}")"
-#         rc=$?
-#         ;;
-#     bzip2*)
-#         [ "${VERBOSE}" = true ] && echo "Unpacking ${archive}..."
-#         bzip2 -dc "$archive" > "${DEST_DIR}/$(basename "${archive}")"
-#         rc=$?
-#         ;;
-#     Zip*)
-#         [ "${VERBOSE}" = true ] && echo "Unpacking ${archive}..."
-#         unzip "${archive}" -d "${DEST_DIR}" > /dev/null
-#         rc=$?
-#         ;;
-#     compress*)
-#         [ "${VERBOSE}" = true ] && echo "Unpacking ${archive}..."
-#         gzip -d -c "${archive}" > "${DEST_DIR}/$(basename "${archive}")"
-#         rc=$?
-#         ;;
-#     *)
-#         [ "$VERBOSE" = true ] && echo "Ignoring ${archive}"
-#         rc=1
-#         ;;
-#     esac
-
-#     return "${rc}"
-# }
 
 function unpack_archive() {
 
     local \
         dest_dir \
-        opts \
-        rc
+        opts
 
     filename="${1}"
     file_type=$(file -b "$filename")
 
     case "$file_type" in
         gzip*)
-            cmd="gunzip"
-            opts="-f"
-            dest_dir=""
-
             [ "${VERBOSE}" = true ] && echo "Unpacking ${filename}..."
-            gunzip -f "${filename}" > /dev/null
+            [[ "${extension}" != "gz" ]] && mv "${filename}" "${filename}.gz"
+            gunzip -f "${filename}" 2>/dev/null
             ;;
         bzip2*)
-            cmd="bunzip2"
-            opts=""
-            dest_dir=""
+            extension="${filename##*.}"
 
             [ "${VERBOSE}" = true ] && echo "Unpacking ${filename}..."
-            bunzip2 -c "${filename}" > "${filename}.bz2"
+            if [[ "${extension}" == "bz2" ]]; then
+                bunzip2 -c "${filename}" > "${filename%.*}_bz2"
+                rm "${filename}"
+                mv "${filename%.*}_bz2" "${filename}"
+            else
+                bunzip2 -f "${filename}" 2>/dev/null
+                mv "${filename}.out" "${filename}"
+            fi
             ;;
         Zip*)
-            cmd="unzip -o"
-            opts="-d"
             dest_dir=$(dirname "${filename}")
 
             [ "${VERBOSE}" = true ] && echo "Unpacking ${filename}..."
             unzip -o "${filename}" -d "${dest_dir}" > /dev/null
             ;;
         compress*)
-            cmd="gzip"
-            opts="-d -c"
-            dest_dir="> ${filename%.*}"
-
             [ "${VERBOSE}" = true ] && echo "Unpacking ${filename}..."
-            gzip -d -c "${filename}" > "${filename%.*}"
+            mv "${filename}" "${filename}.Z"
+            uncompress "${filename}"
             ;;
         *)
             [ "$VERBOSE" = true ] && echo "Ignoring ${filename}"
             return 1
             ;;
     esac
-
-    # echo "$cmd $opts $filename $dest_dir"
-
-    # if [ $? -eq 0 ]; then
-    #     return 0
-    # fi
-    rc=$?
-    return "${rc}"
+    return $?
 }
-
-# export DEST_DIR="./dest_dir"
 
 find_archive "$@"
