@@ -16,7 +16,6 @@ done
 
 shift "$(( OPTIND - 1 ))"
 
-
 function unpack() {
 
     local \
@@ -55,57 +54,14 @@ function unpack() {
     return "${total_ignored_count}"
 }
 
-function find_archive_recursive() {
-
-    local arg \
-        total_file_count \
-        total_ignored_count
-    local -a \
-        unpack_files
-
-    total_file_count=0
-    total_ignored_count=0
-    unpack_files+=("${@}")
-
-    for file in "${unpack_files[@]}"; do
-        if [[ -d "${file}" ]]; then
-
-            # TODO: assign DEST_DIR to the specified
-            DEST_DIR="${file}"
-
-            while IFS= read -r -d '' file; do
-                if [[ -f "$file" ]]; then
-                    # unpack_archive "${file}"
-                    unpack_archive "${file}" \
-                        && total_file_count=$((total_file_count+1)) \
-                                            || total_ignored_count=$((total_ignored_count+1))
-                fi
-
-                # if [[ $? -eq 0 ]]; then
-                #     total_file_count=$((total_file_count+1))
-                # else
-                #     total_ignored_count=$((total_ignored_count+1))
-                # fi
-            done < <(find "${file}" -type f -print0)
-
-        elif [[ -f "${file}" ]]; then
-            unpack_archive "${file}" \
-                        && total_file_count=$((total_file_count+1)) \
-                                            || total_ignored_count=$((total_ignored_count+1))
-        fi
-    done
-
-    echo "Decompressed ${total_file_count} archive(s) "
-    return "${total_ignored_count}"
-}
-
 function find_archive() {
 
     local \
         total_file_count \
         total_ignored_count
     local -a \
-        unpack_files
+        unpack_files \
+        files
 
     total_file_count=0
     total_ignored_count=0
@@ -116,30 +72,24 @@ function find_archive() {
             # TODO: assign DEST_DIR to the specified
             DEST_DIR="${file}"
 
-            files=("${arc_file}"/*)
-            # for file in "${files[@]}"; do
-            #     if [ -f "${file}" ]; then
-            #         unpack_archive "${file}" \
-            #             && total_file_count=$((total_file_count+1)) \
-            #                                 || total_ignored_count=$((total_ignored_count+1))
-            #     fi
-            # done
+            if [ "${recursive}" = true ]; then
+                mapfile -t files < <(find "${arc_file}" -type f)
+            else
+                files=("${arc_file}"/*)
+            fi
+
         elif [[ -f "${arc_file}" ]]; then
             # TODO: assign DEST_DIR to the specified
             DEST_DIR="${file}"
-
             files=("${arc_file}")
-            # unpack_archive "${arc_file}" \
-            #             && total_file_count=$((total_file_count+1)) \
-            #                                 || total_ignored_count=$((total_ignored_count+1))
         fi
-        # TODO: minimize the code by assignmen files with the right arguments
+
         for file in "${files[@]}"; do
-                if [ -f "${file}" ]; then
-                    unpack_archive "${file}" \
-                        && total_file_count=$((total_file_count+1)) \
-                                            || total_ignored_count=$((total_ignored_count+1))
-                fi
+            if [ -f "${file}" ]; then
+                unpack_archive "${file}" \
+                    && total_file_count=$((total_file_count+1)) \
+                                        || total_ignored_count=$((total_ignored_count+1))
+            fi
         done
     done
 
@@ -148,7 +98,6 @@ function find_archive() {
 }
 
 # UNPACK WITH DESTINATION DIR
-# refactor - does less code consider as function refactoring ?
 # function unpack_archive() {
 #     local \
 #         archive \
@@ -278,5 +227,4 @@ files=("${DATA_DIR}/archive.gz" "${DATA_DIR}/archive.bz2" "${DATA_DIR}/archive.z
 
 
 # unpack "$@"
-
-find_archive welcome_copy
+find_archive "$@"
