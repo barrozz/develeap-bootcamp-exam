@@ -41,32 +41,6 @@ count_live_processes() {
     echo "${exe_name}: ${num_processes} instance(s)..."
 }
 
-# function infinite_active_processes() {
-
-#     local USERNAME \
-#         exe_name
-
-#     echo "Pinging '$exe_name' for USERNAME '$USERNAME' ${COUNT} times"
-
-#     while true; do
-#         count_live_processes "$USERNAME" "$exe_name"
-#         sleep "$TIMEOUT"
-#     done
-
-# }
-
-# function iterative_active_processes() {
-
-#     local USERNAME \
-#         exe_name
-
-#     echo "Pinging '$exe_name' for USERNAME '$USERNAME' ${COUNT} times"
-
-#     for ((i = 1; i <= COUNT; i++)); do
-#         count_live_processes "$USERNAME" "$exe_name"
-#         sleep "$TIMEOUT"
-#     done
-# }
 
 if [[ $COUNT -eq -1 ]]; then
     loop_type="while true"
